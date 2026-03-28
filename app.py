@@ -16,6 +16,80 @@ st.set_page_config(page_title="Agenda Pro Premium", page_icon="✨", layout="wid
 st.markdown(
     """
     <style>
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 0.6rem !important;
+            padding-left: 0.7rem !important;
+            padding-right: 0.7rem !important;
+            padding-bottom: 1.2rem !important;
+        }
+        .premium-topbar {
+            padding: 18px 16px !important;
+            border-radius: 18px !important;
+            margin-bottom: 12px !important;
+        }
+        .premium-topbar h1 {
+            font-size: 22px !important;
+            line-height: 1.2 !important;
+        }
+        .premium-topbar p {
+            font-size: 13px !important;
+        }
+        .section-title {
+            font-size: 18px !important;
+            margin: 8px 0 10px 0 !important;
+        }
+        .metric-premium {
+            border-radius: 16px !important;
+            padding: 14px 14px !important;
+            min-height: auto !important;
+            margin-bottom: 10px !important;
+        }
+        .metric-premium .value {
+            font-size: 22px !important;
+        }
+        .glass-card, .schedule-premium, .day-col {
+            border-radius: 16px !important;
+            padding: 12px 12px !important;
+        }
+        .schedule-premium .time {
+            font-size: 20px !important;
+        }
+        .schedule-premium .client {
+            font-size: 15px !important;
+        }
+        .week-grid {
+            grid-template-columns: 1fr !important;
+        }
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+            gap: 0.35rem !important;
+        }
+        div[data-testid="stTabs"] button {
+            font-size: 14px !important;
+            padding: 8px 10px !important;
+        }
+        .stButton > button {
+            width: 100% !important;
+            min-height: 50px !important;
+            border-radius: 14px !important;
+            font-size: 16px !important;
+        }
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stNumberInput"] input,
+        div[data-testid="stTextArea"] textarea,
+        div[data-testid="stSelectbox"] div,
+        div[data-testid="stDateInput"] input,
+        div[data-testid="stTimeInput"] input {
+            font-size: 16px !important;
+        }
+        div[data-testid="stTextArea"] textarea {
+            min-height: 90px !important;
+        }
+        [data-testid="stSidebar"] {
+            min-width: 82vw !important;
+        }
+    }
     .stApp { background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 45%, #f8fafc 100%); }
     [data-testid="stSidebar"] { background: linear-gradient(180deg, #0b1220 0%, #16233b 100%); border-right: 1px solid rgba(255,255,255,0.08); }
     [data-testid="stSidebar"] * { color: #f8fafc !important; }
