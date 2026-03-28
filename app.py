@@ -253,7 +253,7 @@ def cadastrar_produto_automatico(nome, unidade, custo_unitario, origem_obs="Impo
     return c.lastrowid
 
 def detectar_namespace_xml(root):
-    return {"ns": root.tag.split("}")[0].strip("{")} if root.tag.startswith("{") else ""}
+    return {"ns": root.tag.split("}")[0].strip("{")} if root.tag.startswith("{") else {}
 
 def buscar_texto(node, caminhos, ns):
     for caminho in caminhos:
