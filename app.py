@@ -769,7 +769,6 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                         if st.button("Reativar usuário"):
                             executar("UPDATE usuarios SET ativo = 1 WHERE id = ?", (int(user_id),))
                             st.success("Usuário reativado com sucesso!")
-                            st.rerun()
 
 # ==============================
 # MINHA CONTA
