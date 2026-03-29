@@ -882,6 +882,16 @@ if menu == "🛎️ Recepção":
             if st.button("Confirmar chegada"):
                 executar("UPDATE agendamentos SET status = ? WHERE id = ?", ("Confirmado", int(atendimento_id)))
                 st.success("Cliente confirmado na recepção.")
+            if st.button("Confirmar pagamento recepção"):
+                dados_pag = consultar_df("SELECT * FROM agendamentos WHERE id = ?", (int(atendimento_id),)).iloc[0]
+                if not dados_pag["conta_financeira"]:
+                    st.error("Defina a conta financeira no agendamento antes de confirmar o pagamento.")
+                else:
+                    ja_lancado = consultar_df("SELECT * FROM movimentacoes_financeiras WHERE empresa_id = ? AND agendamento_id = ? AND tipo = 'Entrada'", (precisa_empresa_id(), int(atendimento_id)))
+                    if ja_lancado.empty:
+                        registrar_movimentacao_financeira(dados_pag["data"], "Entrada", "Sinal de agendamento", f"Pagamento confirmado recepção - {dados_pag['cliente']}", float(dados_pag["valor_total"] or 0), "PIX", dados_pag["conta_financeira"], "Recepção", int(atendimento_id))
+                    executar("UPDATE agendamentos SET status = ?, forma_pagamento = ? WHERE id = ?", ("Confirmado", "PIX", int(atendimento_id)))
+                    st.success("Pagamento confirmado na recepção.")
         with cta2:
             if st.button("Iniciar atendimento"):
                 executar("UPDATE agendamentos SET status = ? WHERE id = ?", ("Em atendimento", int(atendimento_id)))
@@ -1261,6 +1271,16 @@ if menu == "🗓️ Agendamentos":
                         executar("INSERT INTO agendamento_servicos (empresa_id, agendamento_id, servico, valor, duracao) VALUES (?, ?, ?, ?, ?)", (precisa_empresa_id(), int(ag_id), det["nome"], det["valor"], det["duracao"]))
                     st.success("Agendamento atualizado com sucesso!")
             with b2:
+                if st.button("Confirmar pagamento PIX"):
+                    if nova_conta == "Sem conta cadastrada":
+                        st.error("Selecione uma conta financeira para registrar o recebimento.")
+                    else:
+                        ja_lancado = consultar_df("SELECT * FROM movimentacoes_financeiras WHERE empresa_id = ? AND agendamento_id = ? AND tipo = 'Entrada' AND categoria IN ('Sinal de agendamento','Recebimento de serviço')", (precisa_empresa_id(), int(ag_id)))
+                        if ja_lancado.empty:
+                            categoria_pag = "Sinal de agendamento" if dados["status"] == "Aguardando pagamento" else "Recebimento de serviço"
+                            registrar_movimentacao_financeira(nova_data, "Entrada", categoria_pag, f"Pagamento confirmado - {novo_cliente}", total_edit, "PIX", nova_conta, "Confirmação manual", int(ag_id))
+                        executar("UPDATE agendamentos SET status = ?, forma_pagamento = ?, conta_financeira = ?, observacao = ? WHERE id = ?", ("Confirmado", "PIX", nova_conta, (str(nova_obs or '').strip() + " | Pagamento PIX confirmado manualmente").strip(" |"), int(ag_id)))
+                        st.success("Pagamento confirmado com sucesso!")
                 if st.button("Finalizar atendimento"):
                     executar("UPDATE agendamentos SET status = ?, forma_pagamento = ?, conta_financeira = ?, valor_total = ? WHERE id = ?", ("Concluído", nova_fp, nova_conta, float(total_edit), int(ag_id)))
                     if nova_conta != "Sem conta cadastrada":
