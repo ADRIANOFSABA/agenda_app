@@ -683,7 +683,6 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                         (alt_nome.strip(), alt_razao.strip(), alt_doc.strip(), alt_tel.strip(), alt_email.strip().lower(), alt_pix.strip(), alt_benef.strip(), alt_cidade.strip(), int(alt_ativa), int(alt_link_ativo), alt_slug.strip().lower(), alt_modo, float(alt_percentual), float(alt_valor_fixo), int(emp_id)),
                     )
                     st.success("Empresa atualizada com sucesso!")
-                    st.rerun()
         idx = 1
 
     with tabs[idx]:
@@ -753,7 +752,6 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                             else:
                                 executar("UPDATE usuarios SET nome = ?, email = ?, perfil = ?, ativo = ? WHERE id = ?", (unome.strip(), email_norm, uperfil, int(uativo), int(user_id)))
                             st.success("Usuário atualizado com sucesso!")
-                            st.rerun()
                         except sqlite3.IntegrityError:
                             st.error("Já existe outro usuário com esse e-mail.")
                 with b2:
@@ -764,7 +762,6 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                             else:
                                 executar("UPDATE usuarios SET ativo = 0 WHERE id = ?", (int(user_id),))
                                 st.success("Usuário desativado com sucesso!")
-                                st.rerun()
                     else:
                         if st.button("Reativar usuário"):
                             executar("UPDATE usuarios SET ativo = 1 WHERE id = ?", (int(user_id),))
