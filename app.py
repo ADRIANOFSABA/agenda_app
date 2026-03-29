@@ -431,7 +431,14 @@ def gerar_qrcode_pix(payload):
     qr = qrcode.QRCode(box_size=8, border=2)
     qr.add_data(payload)
     qr.make(fit=True)
-    return qr.make_image(fill_color="black", back_color="white")
+    img = qr.make_image(fill_color="black", back_color="white")
+    if hasattr(img, "get_image"):
+        img = img.get_image()
+    try:
+        img = img.convert("RGB")
+    except Exception:
+        pass
+    return img
 
 
 def calcular_antecipacao(empresa_row, valor_servico: float) -> float:
@@ -498,27 +505,50 @@ if str(params_url.get("publico", "0")) == "1" and params_url.get("empresa"):
         st.stop()
 
     payload_pub = None
+    erro_pix_publico = None
     if valor_antecipado > 0 and emp_pub["pix_chave"]:
-        payload_pub = gerar_payload_pix(
-            emp_pub["pix_chave"],
-            emp_pub["pix_beneficiario"] or emp_pub["nome_fantasia"],
-            emp_pub["pix_cidade"] or "SALVADOR",
-            valor_antecipado,
-            txid=f"PUB{str(data_pub).replace('-', '')}{str(hora_pub).replace(':', '')}",
-        )
-        img_pub = gerar_qrcode_pix(payload_pub)
-        p1, p2 = st.columns([1, 1.2])
-        with p1:
-            st.image(img_pub, caption="QR Code PIX da reserva", width=240)
-        with p2:
-            st.write(f"**Beneficiário:** {emp_pub['pix_beneficiario'] or emp_pub['nome_fantasia']}")
-            st.write(f"**Chave PIX:** {emp_pub['pix_chave']}")
-            st.write(f"**Valor da antecipação:** {moeda_br(valor_antecipado)}")
-            st.text_area("PIX copia e cola", payload_pub, height=170, key="pub_pix_payload")
+        try:
+            payload_pub = gerar_payload_pix(
+                emp_pub["pix_chave"],
+                emp_pub["pix_beneficiario"] or emp_pub["nome_fantasia"],
+                emp_pub["pix_cidade"] or "SALVADOR",
+                valor_antecipado,
+                txid=f"PUB{str(data_pub).replace('-', '')}{str(hora_pub).replace(':', '')}",
+            )
+            img_pub = gerar_qrcode_pix(payload_pub)
+            p1, p2 = st.columns([1, 1.2])
+            with p1:
+                st.image(img_pub, caption="QR Code PIX da reserva", width=240)
+            with p2:
+                st.write(f"**Beneficiário:** {emp_pub['pix_beneficiario'] or emp_pub['nome_fantasia']}")
+                st.write(f"**Chave PIX:** {emp_pub['pix_chave']}")
+                st.write(f"**Valor da antecipação:** {moeda_br(valor_antecipado)}")
+                st.text_area("PIX copia e cola", payload_pub, height=170, key="pub_pix_payload")
+        except Exception as e:
+            erro_pix_publico = str(e)
+            st.warning("Não foi possível renderizar o QR Code PIX agora. Use o código copia e cola abaixo.")
+            try:
+                if payload_pub is None:
+                    payload_pub = gerar_payload_pix(
+                        emp_pub["pix_chave"],
+                        emp_pub["pix_beneficiario"] or emp_pub["nome_fantasia"],
+                        emp_pub["pix_cidade"] or "SALVADOR",
+                        valor_antecipado,
+                        txid=f"PUB{str(data_pub).replace('-', '')}{str(hora_pub).replace(':', '')}",
+                    )
+                st.text_area("PIX copia e cola", payload_pub, height=170, key="pub_pix_payload_fallback")
+            except Exception:
+                st.error("Não foi possível gerar o PIX para esta reserva.")
+    elif valor_antecipado > 0 and not emp_pub["pix_chave"]:
+        st.warning("A empresa ainda não configurou a chave PIX para cobrança antecipada.")
 
     if st.button("Confirmar pré-reserva"):
         if not nome_cliente_pub.strip() or not telefone_cliente_pub.strip():
             st.error("Informe seu nome e telefone.")
+        elif valor_antecipado > 0 and not payload_pub and not emp_pub["pix_chave"]:
+            st.error("A empresa ainda não configurou o PIX para receber antecipação.")
+        elif valor_antecipado > 0 and not payload_pub:
+            st.error("O PIX da reserva não pôde ser gerado com segurança. Tente novamente em instantes.")
         else:
             status_inicial = "Aguardando pagamento" if valor_antecipado > 0 else "Agendado"
             existente = consultar_df(
