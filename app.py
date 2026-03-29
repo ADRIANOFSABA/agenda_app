@@ -490,6 +490,7 @@ if str(params_url.get("publico", "0")) == "1" and params_url.get("empresa"):
     serv_info = df_serv_pub[df_serv_pub["nome"] == servico_pub].iloc[0]
     valor_serv = float(serv_info["valor"] or 0)
     valor_antecipado = calcular_antecipacao(emp_pub, valor_serv)
+    observacao_publica = f"Agendamento criado via link público | Valor total: {moeda_br(valor_serv)} | Antecipação: {moeda_br(valor_antecipado)}"
 
     st.markdown(
         f"<div class='glass-card'><span class='mini-chip'>Serviço: {servico_pub}</span><span class='mini-chip'>Valor total: {moeda_br(valor_serv)}</span><span class='mini-chip'>Antecipação: {moeda_br(valor_antecipado)}</span></div>",
@@ -562,7 +563,7 @@ if str(params_url.get("publico", "0")) == "1" and params_url.get("empresa"):
                 )
             cur = executar(
                 "INSERT INTO agendamentos (empresa_id, cliente, profissional, servico, data, hora, status, observacao, forma_pagamento, conta_financeira, valor_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (int(emp_pub["id"]), nome_cliente_pub.strip(), profissional_pub, servico_pub, str(data_pub), str(hora_pub), status_inicial, "Agendamento criado via link público", "PIX" if valor_antecipado > 0 else "", "", valor_serv),
+                (int(emp_pub["id"]), nome_cliente_pub.strip(), profissional_pub, servico_pub, str(data_pub), str(hora_pub), status_inicial, observacao_publica, "PIX" if valor_antecipado > 0 else "", "", valor_serv),
             )
             ag_id_pub = cur.lastrowid
             executar(
@@ -889,7 +890,17 @@ if menu == "🛎️ Recepção":
                 else:
                     ja_lancado = consultar_df("SELECT * FROM movimentacoes_financeiras WHERE empresa_id = ? AND agendamento_id = ? AND tipo = 'Entrada'", (precisa_empresa_id(), int(atendimento_id)))
                     if ja_lancado.empty:
-                        registrar_movimentacao_financeira(dados_pag["data"], "Entrada", "Sinal de agendamento", f"Pagamento confirmado recepção - {dados_pag['cliente']}", float(dados_pag["valor_total"] or 0), "PIX", dados_pag["conta_financeira"], "Recepção", int(atendimento_id))
+                        valor_sinal = 0.0
+                        obs_pag = str(dados_pag["observacao"] or "")
+                        if "Antecipação:" in obs_pag:
+                            try:
+                                trecho = obs_pag.split("Antecipação:", 1)[1].split("|", 1)[0].strip()
+                                trecho = trecho.replace("R$", "").replace(".", "").replace(",", ".").strip()
+                                valor_sinal = float(trecho)
+                            except Exception:
+                                valor_sinal = 0.0
+                        valor_lancar = valor_sinal if valor_sinal > 0 else float(dados_pag["valor_total"] or 0)
+                        registrar_movimentacao_financeira(dados_pag["data"], "Entrada", "Sinal de agendamento", f"Pagamento confirmado recepção - {dados_pag['cliente']}", valor_lancar, "PIX", dados_pag["conta_financeira"], "Recepção", int(atendimento_id))
                     executar("UPDATE agendamentos SET status = ?, forma_pagamento = ? WHERE id = ?", ("Confirmado", "PIX", int(atendimento_id)))
                     st.success("Pagamento confirmado na recepção.")
         with cta2:
@@ -1275,11 +1286,21 @@ if menu == "🗓️ Agendamentos":
                     if nova_conta == "Sem conta cadastrada":
                         st.error("Selecione uma conta financeira para registrar o recebimento.")
                     else:
-                        ja_lancado = consultar_df("SELECT * FROM movimentacoes_financeiras WHERE empresa_id = ? AND agendamento_id = ? AND tipo = 'Entrada' AND categoria IN ('Sinal de agendamento','Recebimento de serviço')", (precisa_empresa_id(), int(ag_id)))
+                        valor_sinal = 0.0
+                        obs_atual = str(dados["observacao"] or "")
+                        if "Antecipação:" in obs_atual:
+                            try:
+                                trecho = obs_atual.split("Antecipação:", 1)[1].split("|", 1)[0].strip()
+                                trecho = trecho.replace("R$", "").replace(".", "").replace(",", ".").strip()
+                                valor_sinal = float(trecho)
+                            except Exception:
+                                valor_sinal = 0.0
+                        valor_lancar = valor_sinal if valor_sinal > 0 else float(total_edit)
+                        categoria_pag = "Sinal de agendamento" if dados["status"] == "Aguardando pagamento" else "Recebimento de serviço"
+                        ja_lancado = consultar_df("SELECT * FROM movimentacoes_financeiras WHERE empresa_id = ? AND agendamento_id = ? AND tipo = 'Entrada' AND categoria = ?", (precisa_empresa_id(), int(ag_id), categoria_pag))
                         if ja_lancado.empty:
-                            categoria_pag = "Sinal de agendamento" if dados["status"] == "Aguardando pagamento" else "Recebimento de serviço"
-                            registrar_movimentacao_financeira(nova_data, "Entrada", categoria_pag, f"Pagamento confirmado - {novo_cliente}", total_edit, "PIX", nova_conta, "Confirmação manual", int(ag_id))
-                        executar("UPDATE agendamentos SET status = ?, forma_pagamento = ?, conta_financeira = ?, observacao = ? WHERE id = ?", ("Confirmado", "PIX", nova_conta, (str(nova_obs or '').strip() + " | Pagamento PIX confirmado manualmente").strip(" |"), int(ag_id)))
+                            registrar_movimentacao_financeira(nova_data, "Entrada", categoria_pag, f"Pagamento confirmado - {novo_cliente}", valor_lancar, "PIX", nova_conta, "Confirmação manual", int(ag_id))
+                        executar("UPDATE agendamentos SET status = ?, forma_pagamento = ?, conta_financeira = ?, observacao = ? WHERE id = ?", ("Confirmado", "PIX", nova_conta, (str(nova_obs or '').strip() + f" | Pagamento PIX confirmado manualmente: {moeda_br(valor_lancar)}").strip(" |"), int(ag_id)))
                         st.success("Pagamento confirmado com sucesso!")
                 if st.button("Finalizar atendimento"):
                     executar("UPDATE agendamentos SET status = ?, forma_pagamento = ?, conta_financeira = ?, valor_total = ? WHERE id = ?", ("Concluído", nova_fp, nova_conta, float(total_edit), int(ag_id)))
