@@ -440,7 +440,22 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                     st.warning("Informe o nome fantasia.")
             st.markdown("<div class='section-title'>Alterar dados da empresa</div>", unsafe_allow_html=True)
             if not df_empresas.empty:
-                emp_id = st.selectbox("Selecione a empresa para alterar", df_empresas["id"].tolist(), key="empresa_alterar_id")
+                if "empresa_alterar_id_cache" not in st.session_state:
+                    st.session_state.empresa_alterar_id_cache = int(df_empresas.iloc[0]["id"])
+
+                emp_ids = df_empresas["id"].tolist()
+                emp_id = st.selectbox("Selecione a empresa para alterar", emp_ids, key="empresa_alterar_id")
+
+                if emp_id != st.session_state.empresa_alterar_id_cache:
+                    st.session_state.empresa_alterar_id_cache = emp_id
+                    for chave in [
+                        "alt_emp_nome", "alt_emp_doc", "alt_emp_tel", "alt_emp_razao",
+                        "alt_emp_email", "alt_emp_ativa", "alt_emp_pix", "alt_emp_benef", "alt_emp_cidade"
+                    ]:
+                        if chave in st.session_state:
+                            del st.session_state[chave]
+                    st.rerun()
+
                 emp = consultar_df("SELECT * FROM empresas WHERE id = ?", (int(emp_id),)).iloc[0]
                 a1, a2, a3 = st.columns(3)
                 with a1:
@@ -458,6 +473,7 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                 if st.button("Atualizar empresa"):
                     executar("UPDATE empresas SET nome_fantasia = ?, razao_social = ?, documento = ?, telefone = ?, email = ?, pix_chave = ?, pix_beneficiario = ?, pix_cidade = ?, ativa = ? WHERE id = ?", (alt_nome.strip(), alt_razao.strip(), alt_doc.strip(), alt_tel.strip(), alt_email.strip().lower(), alt_pix.strip(), alt_benef.strip(), alt_cidade.strip(), int(alt_ativa), int(emp_id)))
                     st.success("Empresa atualizada com sucesso!")
+                    st.rerun()
         idx = 1
 
     with tabs[idx]:
@@ -500,7 +516,20 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                 df_usuarios = consultar_df("SELECT u.id, u.nome, lower(u.email) as email, u.perfil, u.ativo, e.nome_fantasia as empresa FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.empresa_id = ? ORDER BY u.nome", (precisa_empresa_id(),))
             if not df_usuarios.empty:
                 st.dataframe(df_usuarios, width='stretch', hide_index=True)
-                user_id = st.selectbox("Selecione o usuário para alterar", df_usuarios["id"].tolist(), key="usuario_editar_id")
+
+                if "usuario_editar_id_cache" not in st.session_state:
+                    st.session_state.usuario_editar_id_cache = int(df_usuarios.iloc[0]["id"])
+
+                user_ids = df_usuarios["id"].tolist()
+                user_id = st.selectbox("Selecione o usuário para alterar", user_ids, key="usuario_editar_id")
+
+                if user_id != st.session_state.usuario_editar_id_cache:
+                    st.session_state.usuario_editar_id_cache = user_id
+                    for chave in ["edit_user_nome", "edit_user_email", "edit_user_perfil", "edit_user_ativo", "edit_user_senha"]:
+                        if chave in st.session_state:
+                            del st.session_state[chave]
+                    st.rerun()
+
                 user = c.execute("SELECT * FROM usuarios WHERE id = ?", (int(user_id),)).fetchone()
                 unome = st.text_input("Nome", value=user["nome"], key="edit_user_nome")
                 uemail = st.text_input("E-mail", value=user["email"], key="edit_user_email")
@@ -508,16 +537,35 @@ if menu == "⚙️ Administração" and st.session_state.perfil_logado in ["mast
                 uperfil = st.selectbox("Perfil", perfis_ed, index=perfis_ed.index(user["perfil"]) if user["perfil"] in perfis_ed else 0, key="edit_user_perfil")
                 uativo = st.selectbox("Situação", [1,0], index=0 if int(user["ativo"] or 1) == 1 else 1, format_func=lambda x: "Ativo" if x == 1 else "Inativo", key="edit_user_ativo")
                 nova_senha = st.text_input("Nova senha (opcional)", type="password", key="edit_user_senha")
-                if st.button("Atualizar usuário"):
-                    email_norm = uemail.strip().lower()
-                    try:
-                        if nova_senha.strip():
-                            executar("UPDATE usuarios SET nome = ?, email = ?, perfil = ?, ativo = ?, senha_hash = ? WHERE id = ?", (unome.strip(), email_norm, uperfil, int(uativo), hash_senha(nova_senha), int(user_id)))
+
+                b1, b2 = st.columns(2)
+                with b1:
+                    if st.button("Atualizar usuário"):
+                        email_norm = uemail.strip().lower()
+                        try:
+                            if nova_senha.strip():
+                                executar("UPDATE usuarios SET nome = ?, email = ?, perfil = ?, ativo = ?, senha_hash = ? WHERE id = ?", (unome.strip(), email_norm, uperfil, int(uativo), hash_senha(nova_senha), int(user_id)))
+                            else:
+                                executar("UPDATE usuarios SET nome = ?, email = ?, perfil = ?, ativo = ? WHERE id = ?", (unome.strip(), email_norm, uperfil, int(uativo), int(user_id)))
+                            st.success("Usuário atualizado com sucesso!")
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Já existe outro usuário com esse e-mail.")
+                with b2:
+                    pode_excluir = True
+                    if st.session_state.perfil_logado == "admin_empresa" and user["perfil"] == "admin_empresa" and int(user["id"]) == int(st.session_state.usuario_id_logado):
+                        pode_excluir = False
+                    if st.button("Excluir usuário"):
+                        if int(user["id"]) == int(st.session_state.usuario_id_logado):
+                            st.error("Você não pode excluir o próprio usuário logado.")
+                        elif not pode_excluir:
+                            st.error("Este usuário não pode ser excluído por este perfil.")
                         else:
-                            executar("UPDATE usuarios SET nome = ?, email = ?, perfil = ?, ativo = ? WHERE id = ?", (unome.strip(), email_norm, uperfil, int(uativo), int(user_id)))
-                        st.success("Usuário atualizado com sucesso!")
-                    except sqlite3.IntegrityError:
-                        st.error("Já existe outro usuário com esse e-mail.")
+                            executar("DELETE FROM usuarios WHERE id = ?", (int(user_id),))
+                            st.success("Usuário excluído com sucesso!")
+                            if "usuario_editar_id_cache" in st.session_state:
+                                del st.session_state["usuario_editar_id_cache"]
+                            st.rerun()
 
 # ==============================
 # MINHA CONTA
